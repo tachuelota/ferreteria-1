@@ -1,0 +1,464 @@
+<?php
+
+	require_once $_SERVER['DOCUMENT_ROOT'] . "/ferreteria/utilidades/configuracion.php";
+
+	if(isset($_POST['envioPedido'])) {
+
+		$pedido = new Pedido();
+		$pedido->setIdproveedor($_POST['idproveedor']);
+		$pedido->setFecha(date('Y-m-d H:i:s'));
+		
+		$insertado = $pedido->insertar();
+		foreach($_POST['idsolicitudes_articuloReal'] as $i => $idsolicitud_articulo) {
+			$solicitud_articulo = new SolicitudArticulo();
+			$solicitud_articulo->setIdpedido($insertado);
+			$solicitud_articulo->setIdarticulo($_POST["idarticulo"][$i]);
+			$solicitud_articulo->setCantidad($_POST["cantidad"][$i]);
+			$solicitud_articulo->insertar();		
+		}
+
+		header('Location: ./pedidos.php');
+		exit();
+	}
+
+?>
+<!DOCTYPE html>
+<html>
+	<head>
+		<?php require_once RAIZ . "/html/herramientas.php"; ?>
+		<title>Pedidos</title>
+	    <style>
+
+	    	.relacion {
+	    		padding: 20px;
+	    		border-radius: 5px 5px 0px 0px;
+	    		background-color: white;
+	    	}
+
+	    	.gestion {
+	    		cursor: pointer;
+	    		padding: 5px;
+	    		background-color: #32898B;
+	    		border-radius: 0px 0px 5px 5px;
+	    		text-align: center;
+	    		color: white;
+	    	}
+
+			.cantidad { width: 50px; text-align: center; }
+
+			.contenedor {
+				margin-top: 20px;
+				min-height: 200px;
+				background-color: #3EA8AB;
+				background-image: url(./herramientas/imagenes/carrito.png);
+				background-repeat: no-repeat;
+				background-position: center 0;
+
+			}
+
+			.contenedor div { 
+				width: 100%;
+				color: white;
+				background-color: rgb(43, 122, 133);
+				opacity: 0.9;
+ 			}
+
+ 			.contenedor div span {
+ 				display: inline-block;
+ 				width: 20%;
+				text-align: center;
+ 			}
+
+ 			.contenedor div button {
+				float: right;
+ 			}
+
+ 			.campo {
+ 				display: inline-block;
+ 				font-style: italic;
+ 				color: #333;
+ 			}
+
+ 			#pedidos {
+ 				margin-top: 20px;
+ 			}
+
+ 			.derecha {
+ 				float: right;
+ 			}
+
+
+
+ 			.contenedor div span {
+ 				word-wrap: break-word;
+				padding: 10px 0px;
+				display: inline-block;
+			}
+
+			/* Normal */
+
+			.contenedor .cantidad { width: 10%; text-align: right; }
+			.contenedor .idarticulo { width: 25%; }
+			.contenedor .codigo { width: 15%; }
+			.contenedor .unidad { width: 10%; }
+			.contenedor .precio  { width: 10%; text-align: right; padding: 0px 2.5%; }
+			.contenedor .importe { width: 10%; text-align: right; padding: 0px 2.5%; }
+			.contenedor div button {
+				padding: 5px 0px;
+				width: 5%;
+				margin: 0px;
+			}
+
+		</style>
+		<script>
+
+		var validacion = {
+
+		    "obligatorio" : function(elemento) {
+		        return trim(elemento.value) !== "" ? "" : "Debe especificar el campo.<br/>";
+		    },
+
+		    "decimal" : function(elemento) {
+		    	return esFlotante(trim(elemento.value)) ? "" : "Debe ser decimal.<br />";
+		    },
+
+		    "positivo-exclusivo" : function(elemento) {
+		    	return parseFloat(trim(elemento.value)) > 0 ? "" : "Debe ser mayor a 0.<br />";
+		    },
+
+		    "solicitudes" : function(elemento) {
+		    	return $("div", elemento).length > 0 ? "" : "Debe solicitar articulos.<br/>";
+		    }
+		}
+
+		$(document).ready(function() {
+
+			var estructura = {
+                name: 'Pedidos',
+                fields : {
+                    proveedor : 'Proveedor',
+                    fecha : 'Fecha',
+                    solicitante : 'Solicitante'
+                },
+                extends:[
+                    {
+                        name: 'Articulos',
+                        text: '<i class="fa fa-wrench"></i> Artículos',
+                        clase: 'button',
+                        assoc: 'solicitudes_articulo',
+                        details: function(solicitudes_articulo) {
+
+                        	return "<table class='solicitudes_articulo'>" +
+			            		"<thead>" +
+			            			"<tr>" +
+				            			"<th>Articulo</th>" +
+				            			"<th>Cantidad</th>" +
+			            			"</tr>" +
+			            		"</thead>" +
+	            				"<tbody>" +
+	            				
+	            				(function() {
+	                        		var html = "";
+	                        		for(var i in solicitudes_articulo)
+		                        		html += "<tr>" + 
+			                        		"<td>" + solicitudes_articulo[i].articulo + "</td>" + 
+			                        		"<td>" + solicitudes_articulo[i].cantidad + "</td>" +
+										"</tr>";
+									return html;
+	                        	})()
+
+								"</tbody>" +
+							"</table>";
+                        }
+                    }
+                ],
+                data: <?php echo json_encode(Pedido::getRelacion()); ?>
+            };
+
+            JWeb('pedidos').grid(estructura);
+
+			$("#formaPedido").submit(function() {
+				var correcto = validar(this, "pedido");
+            	tooltip(this, "pedido");
+            	return correcto;
+			});
+
+			$(".gestionar").click(function(e) {
+
+				var relacionVisible = $(".relacion:visible")[0];
+		        var correcto = validar(relacionVisible, this.dataset.scope);
+
+				if(correcto) {
+
+		        	var id = document.getElementById('id').value;
+		        	var contenedor = $(relacionVisible).prevAll(".contenedor").first()[0];
+
+		        	if(id) {
+
+		        		var idsTemp = $("input[name='id" + contenedor.id + "Temp[]']");
+		        		var encontrado = $.inArray(parseInt(id), idsTemp.map(function() { return parseInt(this.value); }));
+
+			        	if(encontrado != -1) {
+			        		var elemento = idsTemp[encontrado].parentNode;
+			        		var campos = $(":input:not(:button), textarea", relacionVisible);
+			        		var toStrings = $("span", elemento);
+			        		var valores = $(".valores", elemento);
+			        		for(var i = 0, l = valores.length; i<l ; ++i) {
+			        			valores[i].value = campos[i].value;
+			        			toStrings[i].innerHTML  = /^select$/i.test(campos[i].nodeName) ? $(":selected", campos[i])[0].innerHTML : campos[i].value;
+			        		}
+			        		document.getElementById('id').value = "";
+			        	}
+		        	}
+		        	else {
+
+		        		var toStrings = "";
+		        		var valores = "";
+			        	var campos = $("input, textarea, select", relacionVisible);			        	
+
+			        	$.each(campos, function(i, campo) {
+		        			toStrings += "<span class='"+campo.id+"'>"+(/^select$/i.test(campo.nodeName) ? $(":selected", campo)[0].innerHTML : campo.value)+"</span>";
+		        			valores += "<input class='valores' type='hidden' name='"+campo.id+"[]' value='"+campo.value+"'/>";
+			        	});
+
+		        		var nuevoElemento = 
+		        		"<div>" +
+		        			"<input type='hidden' name='id"+contenedor.id+"Temp[]' value='"+contenedor.children.length+"' />" +
+		        			toStrings +
+		        			"<button type='button' class='editar btn button'><i class='fa fa-pencil-square fa-2x'></i></button>" +
+		        			"<button type='button' class='eliminar btn button'><i class='fa fa-trash-o fa-2x'></i></button>" +
+		        			"<div class='clear'></div>" +
+		        			"<input type='hidden' name='id"+contenedor.id+"Real[]' value='0' />" +
+		        			valores +
+		        		"</div>";
+
+		        		$(contenedor).append(nuevoElemento);
+
+					}
+
+					document.getElementById('id').value = ""; //*
+					limpiar(relacionVisible);
+					//$(relacionVisible).slideUp("fast");
+				}
+				else
+					tooltip(relacionVisible, this.dataset.scope);
+		    });
+			
+			$(document).on("click", ".editar", function(e) {
+    			
+    			var elemento = this.parentNode;
+    			var relacionActivar = $("~ .relacion", elemento.parentNode).first()[0];
+    			document.getElementById('id').value = elemento.childNodes[0].value;
+				limpiar(relacionActivar);
+
+				/*
+				var relacionVisible = $(".relacion:visible");
+				relacionVisible = relacionVisible.length ? relacionVisible[0] : null;
+				if(relacionActivar != relacionVisible) {
+					$(relacionVisible).slideUp("fast");
+					$(relacionActivar).slideDown("fast");
+				}*/
+
+				var toStrings = $(".valores", elemento);
+    			$.each($(":input:not(:button), textarea", relacionActivar), function(i, input) {
+    				input.value = toStrings[i].value;
+    			});	
+
+			});
+
+			$(document).on("click", ".eliminar", function(e) {
+    			
+    			var elemento = this.parentNode;
+    			var listado = elemento.parentNode;
+			    $(elemento).remove();
+
+			    document.getElementById('id').value = "";
+
+			    /*
+			    var relacionVisible = $(".relacion:visible");
+				relacionVisible = relacionVisible.length ? relacionVisible[0] : null;
+				if(relacionVisible)
+					$(relacionVisible).slideUp("fast");
+				*/
+
+	        	$.each($(listado).children(), function(i, elemento) { elemento.childNodes[0].value = i; });
+
+			});
+
+			/*$(".cancelar_relacion").click(function() {
+        		$(".relacion:visible").slideUp("fast");
+        	});*/
+
+			$(".gestion").click(function(e) {
+
+				var boton = this;
+
+				if(/^I$/i.test(this.tagName)) {
+					boton = this.parentNode;
+					e.stopPropagation();
+				}
+
+				var relacionActivar = $(boton).prev(".relacion")[0];
+
+				document.getElementById('id').value = "";
+				limpiar(relacionActivar);
+				document.getElementById('importe').value = (0).toFixed(2);
+				
+				/*
+				var relacionVisible = $(".relacion:visible");
+				relacionVisible = relacionVisible.length ? relacionVisible[0] : null;
+				if(relacionActivar != relacionVisible) {
+					$(relacionVisible).slideUp("fast");
+					$(relacionActivar).slideDown("fast");
+				}*/
+
+			});
+
+			var articulos = <?php
+
+				$articulos = Articulo::buscar(array(
+					"campos" => "id, nombre, unidad, codigo",
+					"condiciones" => array("articulo.activo", "=", 1)));
+
+				echo json_encode(Articulo::getRelacion($articulos));
+
+			?>;
+
+			function buscarArticulo(id) {
+				for(var i in articulos)
+					if(articulos[i].id === id)
+						return articulos[i];
+				return null;
+			}
+
+			$(document).on("blur", "#cantidad", function() {
+		
+				var cantidad = this.value;
+				var precio = document.getElementById("precio").value;
+				var idarticulo = document.getElementById("idarticulo").value;
+
+				document.getElementById("importe").value = idarticulo ? esFlotante(cantidad) && parseFloat(cantidad) > 0 ?
+				(parseFloat(precio) * parseFloat(cantidad)).toFixed(2) : (0).toFixed(2) : (0).toFixed(2);
+
+			});
+
+			$(document).on("change", "#idarticulo", function() {
+
+				var codigo = document.getElementById("codigo");
+				var unidad = document.getElementById("unidad");
+				var precio = document.getElementById("precio");
+				var importe = document.getElementById("importe");
+
+				if(this.value) {
+					var articulo = buscarArticulo(this.value);
+					var cantidad = document.getElementById("cantidad").value;
+					codigo.value = articulo.codigo;
+					unidad.value = articulo.unidad;
+					precio.value = parseFloat(articulo.precios[0]["precio"]).toFixed(2);
+					
+					importe.value =	esFlotante(cantidad) && parseFloat(cantidad) > 0 ? 
+					(parseFloat(articulo.precios[0]["precio"]) * parseFloat(cantidad)).toFixed(2) : (0).toFixed(2);
+				}
+				else {
+					codigo.value = unidad.value = precio.value = "";
+					importe.value = (0).toFixed(2);
+				}
+
+			});
+
+		});
+		</script>
+	</head>
+	<body>
+		<div id="wrapper">
+			<?php require_once RAIZ . "/html/header.php"; ?>
+			<br /><br /><br /><br /><br /><br />
+			<div class="forma">
+
+				<!-- Titulo -->
+
+				<div class="tituloForma">
+					<b>Pedido</b>
+				</div>
+				
+				<!-- Cuerpo -->
+				<div class="cuerpoForma">
+					<form id="formaPedido" method="post">
+						
+						<!-- idproveedor -->
+
+						<select name="idproveedor" data-validador="obligatorio" data-scope="pedido">
+							<option value="">Seleccione el proveedor</option>
+						<?php
+							$proveedores = Proveedor::buscar(array(
+								"campos" => "id, razon_social",
+								"condiciones" => array("activo", "=", 1),
+								"orden" => array("razon_social", "ASC")));
+							foreach($proveedores as $proveedor)
+								echo "<option value='{$proveedor['id']}'>{$proveedor['razon_social']}</option>";
+						?>
+						</select>
+						<br />
+
+						<!-- ***************************** Relaciones ***************************** -->
+						
+						<input type="hidden" id="id" />
+
+						<!-- ***************************** Solicitud de Artículos ***************************** -->
+
+						<div id="solicitudes_articulo" class="contenedor" tabindex="1" data-validador="solicitudes" data-scope="pedido"></div>
+						<div class="relacion">
+							<fieldset>
+								
+								<span class="campo">Artículo:</span>
+								<select id="idarticulo" data-validador="obligatorio" data-scope="solicitud_articulo">
+									<option value="">Seleccione el artículo</option>
+									<?php
+										$articulos = Articulo::buscar(array(
+											"campos" => "id, nombre",
+											"condiciones" => array("activo", "=", 1),
+											"orden" => array("nombre", "ASC")));
+										foreach($articulos as $articulo)
+											echo "<option value='{$articulo['id']}'>{$articulo['nombre']}</option>";
+									?>
+								</select>
+								<br />
+
+								<span class="campo">Cantidad:</span>
+								<input id="cantidad" class="cantidad" data-validador="obligatorio decimal positivo-exclusivo" data-scope="solicitud_articulo" />
+								<br />
+
+								<span class="campo">Código:</span>
+								<input id="codigo" readonly="readonly" />
+								<br />
+
+								<span class="campo">Unidad:</span>
+								<input id="unidad" readonly="readonly" />
+								<br />
+
+								<span class="campo">Precio:</span>
+								<input id="precio" readonly="readonly" />
+								<br />
+
+								<span class="campo">Importe:</span>
+								<input id="importe" class="cantidad" readonly="readonly" value="0.00" />
+								<br />
+
+							</fieldset>
+							<button class="button gestionar" data-scope="solicitud_articulo" type="button">Guardar</button>
+							<!--<button class="button cancelar_relacion" type="button">Cancelar</button><br />-->
+						</div>
+						<div class="gestion"><i class="fa fa-plus fa-2x gestion"></i><i class="fa fa-wrench fa-2x gestion"></i></div>
+
+						<!-- Botones -->
+
+						<button class="button derecha" type="submit" name="envioPedido">Crear</button>
+						<div class="clear"></div>
+					</form>
+					
+					<div id="pedidos"></div>
+				</div>
+			</div>
+		</div>
+	</body>
+</html>

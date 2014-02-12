@@ -1,0 +1,3 @@
+function esNatural(s) { return /^\d+$/.test(s); }
+function esEntero(s) { return /^-?\d+$/.test(s); }
+function ucfirst(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
